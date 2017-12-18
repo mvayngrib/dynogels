@@ -1,11 +1,12 @@
 'use strict';
 
+const co = require('co').wrap
 const dynogels = require('../../index');
 const chai = require('chai');
 const expect = chai.expect;
 const _ = require('lodash');
-const helper = require('../test-helper');
 const Joi = require('joi');
+const helper = require('../test-helper');
 
 chai.should();
 
@@ -20,7 +21,7 @@ describe('Create Tables Integration Tests', function () {
     dynogels.reset();
   });
 
-  it('should create table with hash key', done => {
+  it('should create table with hash key', co(function* () {
     const Model = dynogels.define('dynogels-create-table-test', {
       hashKey: 'id',
       tableName: helper.randomName('dynogels-createtable-Accounts'),
@@ -29,22 +30,19 @@ describe('Create Tables Integration Tests', function () {
       }
     });
 
-    Model.createTable((err, result) => {
-      expect(err).to.not.exist;
+    const result = yield Model.createTable()
+    const desc = result.TableDescription;
+    expect(desc).to.exist;
+    expect(desc.KeySchema).to.eql([{ AttributeName: 'id', KeyType: 'HASH' }]);
 
-      const desc = result.TableDescription;
-      expect(desc).to.exist;
-      expect(desc.KeySchema).to.eql([{ AttributeName: 'id', KeyType: 'HASH' }]);
+    expect(desc.AttributeDefinitions).to.eql([
+      { AttributeName: 'id', AttributeType: 'S' },
+    ]);
 
-      expect(desc.AttributeDefinitions).to.eql([
-        { AttributeName: 'id', AttributeType: 'S' },
-      ]);
+    yield Model.deleteTable();
+  }));
 
-      return Model.deleteTable(done);
-    });
-  });
-
-  it('should create table with hash and range key', done => {
+  it('should create table with hash and range key', co(function* () {
     const Model = dynogels.define('dynogels-createtable-rangekey', {
       hashKey: 'name',
       rangeKey: 'age',
@@ -55,28 +53,25 @@ describe('Create Tables Integration Tests', function () {
       }
     });
 
-    Model.createTable((err, result) => {
-      expect(err).to.not.exist;
+    const result = yield Model.createTable()
+    const desc = result.TableDescription;
 
-      const desc = result.TableDescription;
+    expect(desc).to.exist;
 
-      expect(desc).to.exist;
+    expect(desc.AttributeDefinitions).to.eql([
+      { AttributeName: 'name', AttributeType: 'S' },
+      { AttributeName: 'age', AttributeType: 'N' }
+    ]);
 
-      expect(desc.AttributeDefinitions).to.eql([
-        { AttributeName: 'name', AttributeType: 'S' },
-        { AttributeName: 'age', AttributeType: 'N' }
-      ]);
+    expect(desc.KeySchema).to.eql([
+      { AttributeName: 'name', KeyType: 'HASH' },
+      { AttributeName: 'age', KeyType: 'RANGE' }
+    ]);
 
-      expect(desc.KeySchema).to.eql([
-        { AttributeName: 'name', KeyType: 'HASH' },
-        { AttributeName: 'age', KeyType: 'RANGE' }
-      ]);
+    yield Model.deleteTable();
+  }));
 
-      return Model.deleteTable(done);
-    });
-  });
-
-  it('should create table with local secondary index', done => {
+  it('should create table with local secondary index', co(function* () {
     const Model = dynogels.define('dynogels-createtable-rangekey', {
       hashKey: 'name',
       rangeKey: 'age',
@@ -93,48 +88,45 @@ describe('Create Tables Integration Tests', function () {
       ]
     });
 
-    Model.createTable((err, result) => {
-      expect(err).to.not.exist;
+    const result = yield Model.createTable()
+    const desc = result.TableDescription;
 
-      const desc = result.TableDescription;
+    expect(desc).to.exist;
 
-      expect(desc).to.exist;
+    expect(desc.AttributeDefinitions).to.eql([
+      { AttributeName: 'name', AttributeType: 'S' },
+      { AttributeName: 'age', AttributeType: 'N' },
+      { AttributeName: 'nick', AttributeType: 'S' },
+      { AttributeName: 'time', AttributeType: 'S' }
+    ]);
 
-      expect(desc.AttributeDefinitions).to.eql([
-        { AttributeName: 'name', AttributeType: 'S' },
-        { AttributeName: 'age', AttributeType: 'N' },
-        { AttributeName: 'nick', AttributeType: 'S' },
-        { AttributeName: 'time', AttributeType: 'S' }
-      ]);
+    expect(desc.KeySchema).to.eql([
+      { AttributeName: 'name', KeyType: 'HASH' },
+      { AttributeName: 'age', KeyType: 'RANGE' }
+    ]);
 
-      expect(desc.KeySchema).to.eql([
-        { AttributeName: 'name', KeyType: 'HASH' },
-        { AttributeName: 'age', KeyType: 'RANGE' }
-      ]);
+    expect(desc.LocalSecondaryIndexes).to.have.length(2);
 
-      expect(desc.LocalSecondaryIndexes).to.have.length(2);
+    const nickIndex = _.find(desc.LocalSecondaryIndexes, { IndexName: 'NickIndex' });
+    expect(nickIndex.IndexName).to.eql('NickIndex');
+    expect(nickIndex.Projection).to.eql({ ProjectionType: 'ALL' });
+    expect(nickIndex.KeySchema).to.eql([
+      { AttributeName: 'name', KeyType: 'HASH' },
+      { AttributeName: 'nick', KeyType: 'RANGE' },
+    ]);
 
-      const nickIndex = _.find(desc.LocalSecondaryIndexes, { IndexName: 'NickIndex' });
-      expect(nickIndex.IndexName).to.eql('NickIndex');
-      expect(nickIndex.Projection).to.eql({ ProjectionType: 'ALL' });
-      expect(nickIndex.KeySchema).to.eql([
-        { AttributeName: 'name', KeyType: 'HASH' },
-        { AttributeName: 'nick', KeyType: 'RANGE' },
-      ]);
+    const timeIndex = _.find(desc.LocalSecondaryIndexes, { IndexName: 'TimeIndex' });
+    expect(timeIndex.IndexName).to.eql('TimeIndex');
+    expect(timeIndex.Projection).to.eql({ ProjectionType: 'ALL' });
+    expect(timeIndex.KeySchema).to.eql([
+      { AttributeName: 'name', KeyType: 'HASH' },
+      { AttributeName: 'time', KeyType: 'RANGE' },
+    ]);
 
-      const timeIndex = _.find(desc.LocalSecondaryIndexes, { IndexName: 'TimeIndex' });
-      expect(timeIndex.IndexName).to.eql('TimeIndex');
-      expect(timeIndex.Projection).to.eql({ ProjectionType: 'ALL' });
-      expect(timeIndex.KeySchema).to.eql([
-        { AttributeName: 'name', KeyType: 'HASH' },
-        { AttributeName: 'time', KeyType: 'RANGE' },
-      ]);
+    yield Model.deleteTable();
+  }));
 
-      return Model.deleteTable(done);
-    });
-  });
-
-  it('should create table with local secondary index with custom projection', done => {
+  it('should create table with local secondary index with custom projection', co(function* () {
     const Model = dynogels.define('dynogels-createtable-local-proj', {
       hashKey: 'name',
       rangeKey: 'age',
@@ -153,37 +145,34 @@ describe('Create Tables Integration Tests', function () {
       }]
     });
 
-    Model.createTable((err, result) => {
-      expect(err).to.not.exist;
+    const result = yield Model.createTable()
+    const desc = result.TableDescription;
 
-      const desc = result.TableDescription;
+    expect(desc).to.exist;
 
-      expect(desc).to.exist;
+    expect(desc.AttributeDefinitions).to.eql([
+      { AttributeName: 'name', AttributeType: 'S' },
+      { AttributeName: 'age', AttributeType: 'N' },
+      { AttributeName: 'nick', AttributeType: 'S' }
+    ]);
 
-      expect(desc.AttributeDefinitions).to.eql([
-        { AttributeName: 'name', AttributeType: 'S' },
-        { AttributeName: 'age', AttributeType: 'N' },
-        { AttributeName: 'nick', AttributeType: 'S' }
-      ]);
+    expect(desc.KeySchema).to.eql([
+      { AttributeName: 'name', KeyType: 'HASH' },
+      { AttributeName: 'age', KeyType: 'RANGE' }
+    ]);
 
-      expect(desc.KeySchema).to.eql([
-        { AttributeName: 'name', KeyType: 'HASH' },
-        { AttributeName: 'age', KeyType: 'RANGE' }
-      ]);
+    const nickIndex = _.find(desc.LocalSecondaryIndexes, { IndexName: 'KeysOnlyNickIndex' });
+    expect(nickIndex.IndexName).to.eql('KeysOnlyNickIndex');
+    expect(nickIndex.Projection).to.eql({ ProjectionType: 'KEYS_ONLY' });
+    expect(nickIndex.KeySchema).to.eql([
+      { AttributeName: 'name', KeyType: 'HASH' },
+      { AttributeName: 'nick', KeyType: 'RANGE' },
+    ]);
 
-      const nickIndex = _.find(desc.LocalSecondaryIndexes, { IndexName: 'KeysOnlyNickIndex' });
-      expect(nickIndex.IndexName).to.eql('KeysOnlyNickIndex');
-      expect(nickIndex.Projection).to.eql({ ProjectionType: 'KEYS_ONLY' });
-      expect(nickIndex.KeySchema).to.eql([
-        { AttributeName: 'name', KeyType: 'HASH' },
-        { AttributeName: 'nick', KeyType: 'RANGE' },
-      ]);
+    yield Model.deleteTable();
+  }));
 
-      return Model.deleteTable(done);
-    });
-  });
-
-  it('should create table with global index', done => {
+  it('should create table with global index', co(function* () {
     const Model = dynogels.define('dynogels-createtable-global', {
       hashKey: 'name',
       rangeKey: 'age',
@@ -196,37 +185,34 @@ describe('Create Tables Integration Tests', function () {
       indexes: [{ hashKey: 'nick', type: 'global', name: 'GlobalNickIndex' }]
     });
 
-    Model.createTable((err, result) => {
-      expect(err).to.not.exist;
+    const result = yield Model.createTable()
+    const desc = result.TableDescription;
 
-      const desc = result.TableDescription;
+    expect(desc).to.exist;
 
-      expect(desc).to.exist;
+    expect(desc.AttributeDefinitions).to.eql([
+      { AttributeName: 'name', AttributeType: 'S' },
+      { AttributeName: 'age', AttributeType: 'N' },
+      { AttributeName: 'nick', AttributeType: 'S' }
+    ]);
 
-      expect(desc.AttributeDefinitions).to.eql([
-        { AttributeName: 'name', AttributeType: 'S' },
-        { AttributeName: 'age', AttributeType: 'N' },
-        { AttributeName: 'nick', AttributeType: 'S' }
-      ]);
+    expect(desc.KeySchema).to.eql([
+      { AttributeName: 'name', KeyType: 'HASH' },
+      { AttributeName: 'age', KeyType: 'RANGE' }
+    ]);
 
-      expect(desc.KeySchema).to.eql([
-        { AttributeName: 'name', KeyType: 'HASH' },
-        { AttributeName: 'age', KeyType: 'RANGE' }
-      ]);
+    const nickIndex = _.find(desc.GlobalSecondaryIndexes, { IndexName: 'GlobalNickIndex' });
+    expect(nickIndex.IndexName).to.eql('GlobalNickIndex');
+    expect(nickIndex.Projection).to.eql({ ProjectionType: 'ALL' });
+    expect(nickIndex.KeySchema).to.eql([
+      { AttributeName: 'nick', KeyType: 'HASH' },
+    ]);
+    expect(nickIndex.ProvisionedThroughput).to.eql({ ReadCapacityUnits: 1, WriteCapacityUnits: 1 });
 
-      const nickIndex = _.find(desc.GlobalSecondaryIndexes, { IndexName: 'GlobalNickIndex' });
-      expect(nickIndex.IndexName).to.eql('GlobalNickIndex');
-      expect(nickIndex.Projection).to.eql({ ProjectionType: 'ALL' });
-      expect(nickIndex.KeySchema).to.eql([
-        { AttributeName: 'nick', KeyType: 'HASH' },
-      ]);
-      expect(nickIndex.ProvisionedThroughput).to.eql({ ReadCapacityUnits: 1, WriteCapacityUnits: 1 });
+    yield Model.deleteTable();
+  }));
 
-      return Model.deleteTable(done);
-    });
-  });
-
-  it('should create table with global index with optional settings', done => {
+  it('should create table with global index with optional settings', co(function* () {
     const Model = dynogels.define('dynogels-createtable-global', {
       hashKey: 'name',
       rangeKey: 'age',
@@ -247,37 +233,34 @@ describe('Create Tables Integration Tests', function () {
       }]
     });
 
-    Model.createTable((err, result) => {
-      expect(err).to.not.exist;
+    const result = yield Model.createTable()
+    const desc = result.TableDescription;
 
-      const desc = result.TableDescription;
+    expect(desc).to.exist;
 
-      expect(desc).to.exist;
+    expect(desc.AttributeDefinitions).to.eql([
+      { AttributeName: 'name', AttributeType: 'S' },
+      { AttributeName: 'age', AttributeType: 'N' },
+      { AttributeName: 'nick', AttributeType: 'S' }
+    ]);
 
-      expect(desc.AttributeDefinitions).to.eql([
-        { AttributeName: 'name', AttributeType: 'S' },
-        { AttributeName: 'age', AttributeType: 'N' },
-        { AttributeName: 'nick', AttributeType: 'S' }
-      ]);
+    expect(desc.KeySchema).to.eql([
+      { AttributeName: 'name', KeyType: 'HASH' },
+      { AttributeName: 'age', KeyType: 'RANGE' }
+    ]);
 
-      expect(desc.KeySchema).to.eql([
-        { AttributeName: 'name', KeyType: 'HASH' },
-        { AttributeName: 'age', KeyType: 'RANGE' }
-      ]);
+    const nickIndex = _.find(desc.GlobalSecondaryIndexes, { IndexName: 'GlobalNickIndex' });
+    expect(nickIndex.IndexName).to.eql('GlobalNickIndex');
+    expect(nickIndex.Projection).to.eql({ ProjectionType: 'INCLUDE', NonKeyAttributes: ['wins'] });
+    expect(nickIndex.KeySchema).to.eql([
+      { AttributeName: 'nick', KeyType: 'HASH' },
+    ]);
+    expect(nickIndex.ProvisionedThroughput).to.eql({ ReadCapacityUnits: 10, WriteCapacityUnits: 5 });
 
-      const nickIndex = _.find(desc.GlobalSecondaryIndexes, { IndexName: 'GlobalNickIndex' });
-      expect(nickIndex.IndexName).to.eql('GlobalNickIndex');
-      expect(nickIndex.Projection).to.eql({ ProjectionType: 'INCLUDE', NonKeyAttributes: ['wins'] });
-      expect(nickIndex.KeySchema).to.eql([
-        { AttributeName: 'nick', KeyType: 'HASH' },
-      ]);
-      expect(nickIndex.ProvisionedThroughput).to.eql({ ReadCapacityUnits: 10, WriteCapacityUnits: 5 });
+    yield Model.deleteTable();
+  }));
 
-      return Model.deleteTable(done);
-    });
-  });
-
-  it('should create table with global and local indexes', done => {
+  it('should create table with global and local indexes', co(function* () {
     const Model = dynogels.define('dynogels-createtable-both-indexes', {
       hashKey: 'name',
       rangeKey: 'age',
@@ -296,65 +279,62 @@ describe('Create Tables Integration Tests', function () {
       ]
     });
 
-    Model.createTable((err, result) => {
-      expect(err).to.not.exist;
+    const result = yield Model.createTable()
+    const desc = result.TableDescription;
 
-      const desc = result.TableDescription;
+    expect(desc).to.exist;
 
-      expect(desc).to.exist;
+    expect(desc.AttributeDefinitions).to.eql([
+      { AttributeName: 'name', AttributeType: 'S' },
+      { AttributeName: 'age', AttributeType: 'N' },
+      { AttributeName: 'nick', AttributeType: 'S' },
+      { AttributeName: 'wins', AttributeType: 'N' }
+    ]);
 
-      expect(desc.AttributeDefinitions).to.eql([
-        { AttributeName: 'name', AttributeType: 'S' },
-        { AttributeName: 'age', AttributeType: 'N' },
-        { AttributeName: 'nick', AttributeType: 'S' },
-        { AttributeName: 'wins', AttributeType: 'N' }
-      ]);
+    expect(desc.KeySchema).to.eql([
+      { AttributeName: 'name', KeyType: 'HASH' },
+      { AttributeName: 'age', KeyType: 'RANGE' }
+    ]);
 
-      expect(desc.KeySchema).to.eql([
-        { AttributeName: 'name', KeyType: 'HASH' },
-        { AttributeName: 'age', KeyType: 'RANGE' }
-      ]);
+    expect(desc.GlobalSecondaryIndexes).to.have.length(2);
 
-      expect(desc.GlobalSecondaryIndexes).to.have.length(2);
+    const nickIndex = _.find(desc.GlobalSecondaryIndexes, { IndexName: 'GlobalNickIndex' });
+    expect(nickIndex.IndexName).to.eql('GlobalNickIndex');
+    expect(nickIndex.Projection).to.eql({ ProjectionType: 'ALL' });
+    expect(nickIndex.KeySchema).to.eql([
+      { AttributeName: 'nick', KeyType: 'HASH' },
+    ]);
+    expect(nickIndex.ProvisionedThroughput).to.eql({ ReadCapacityUnits: 1, WriteCapacityUnits: 1 });
 
-      const nickIndex = _.find(desc.GlobalSecondaryIndexes, { IndexName: 'GlobalNickIndex' });
-      expect(nickIndex.IndexName).to.eql('GlobalNickIndex');
-      expect(nickIndex.Projection).to.eql({ ProjectionType: 'ALL' });
-      expect(nickIndex.KeySchema).to.eql([
-        { AttributeName: 'nick', KeyType: 'HASH' },
-      ]);
-      expect(nickIndex.ProvisionedThroughput).to.eql({ ReadCapacityUnits: 1, WriteCapacityUnits: 1 });
+    const ageWinsIndex = _.find(desc.GlobalSecondaryIndexes, { IndexName: 'GlobalAgeWinsIndex' });
+    expect(ageWinsIndex.IndexName).to.eql('GlobalAgeWinsIndex');
+    expect(ageWinsIndex.Projection).to.eql({ ProjectionType: 'ALL' });
+    expect(ageWinsIndex.KeySchema).to.eql([
+      { AttributeName: 'age', KeyType: 'HASH' },
+      { AttributeName: 'wins', KeyType: 'RANGE' },
+    ]);
+    expect(ageWinsIndex.ProvisionedThroughput).to.eql({ ReadCapacityUnits: 1, WriteCapacityUnits: 1 });
 
-      const ageWinsIndex = _.find(desc.GlobalSecondaryIndexes, { IndexName: 'GlobalAgeWinsIndex' });
-      expect(ageWinsIndex.IndexName).to.eql('GlobalAgeWinsIndex');
-      expect(ageWinsIndex.Projection).to.eql({ ProjectionType: 'ALL' });
-      expect(ageWinsIndex.KeySchema).to.eql([
-        { AttributeName: 'age', KeyType: 'HASH' },
-        { AttributeName: 'wins', KeyType: 'RANGE' },
-      ]);
-      expect(ageWinsIndex.ProvisionedThroughput).to.eql({ ReadCapacityUnits: 1, WriteCapacityUnits: 1 });
+    expect(desc.LocalSecondaryIndexes).to.have.length(2);
 
-      expect(desc.LocalSecondaryIndexes).to.have.length(2);
+    const nameNickIndex = _.find(desc.LocalSecondaryIndexes, { IndexName: 'NameNickIndex' });
+    expect(nameNickIndex.IndexName).to.eql('NameNickIndex');
+    expect(nameNickIndex.Projection).to.eql({ ProjectionType: 'ALL' });
+    expect(nameNickIndex.KeySchema).to.eql([
+      { AttributeName: 'name', KeyType: 'HASH' },
+      { AttributeName: 'nick', KeyType: 'RANGE' },
+    ]);
 
-      const nameNickIndex = _.find(desc.LocalSecondaryIndexes, { IndexName: 'NameNickIndex' });
-      expect(nameNickIndex.IndexName).to.eql('NameNickIndex');
-      expect(nameNickIndex.Projection).to.eql({ ProjectionType: 'ALL' });
-      expect(nameNickIndex.KeySchema).to.eql([
-        { AttributeName: 'name', KeyType: 'HASH' },
-        { AttributeName: 'nick', KeyType: 'RANGE' },
-      ]);
+    const nameWinsIndex = _.find(desc.LocalSecondaryIndexes, { IndexName: 'NameWinsIndex' });
+    expect(nameWinsIndex.IndexName).to.eql('NameWinsIndex');
+    expect(nameWinsIndex.Projection).to.eql({ ProjectionType: 'ALL' });
+    expect(nameWinsIndex.KeySchema).to.eql([
+      { AttributeName: 'name', KeyType: 'HASH' },
+      { AttributeName: 'wins', KeyType: 'RANGE' },
+    ]);
 
-      const nameWinsIndex = _.find(desc.LocalSecondaryIndexes, { IndexName: 'NameWinsIndex' });
-      expect(nameWinsIndex.IndexName).to.eql('NameWinsIndex');
-      expect(nameWinsIndex.Projection).to.eql({ ProjectionType: 'ALL' });
-      expect(nameWinsIndex.KeySchema).to.eql([
-        { AttributeName: 'name', KeyType: 'HASH' },
-        { AttributeName: 'wins', KeyType: 'RANGE' },
-      ]);
-
-      return Model.deleteTable(done);
-    });
-  });
+    yield Model.deleteTable();
+  }));
 });
 
 describe('Update Tables Integration Tests', function () {
@@ -362,7 +342,7 @@ describe('Update Tables Integration Tests', function () {
   let Tweet;
   let tableName;
 
-  before(done => {
+  before(co(function* () {
     dynogels.dynamoDriver(helper.realDynamoDB());
 
     tableName = helper.randomName('dynogels-updateTable-Tweets');
@@ -379,14 +359,14 @@ describe('Update Tables Integration Tests', function () {
       }
     });
 
-    dynogels.createTables(done);
-  });
+    yield dynogels.createTables();
+  }));
 
   afterEach(() => {
     dynogels.reset();
   });
 
-  it('should add global secondary index', done => {
+  it('should add global secondary index', co(function* () {
     Tweet = dynogels.define('dynogels-update-table-test', {
       hashKey: 'UserId',
       rangeKey: 'TweetID',
@@ -402,23 +382,15 @@ describe('Update Tables Integration Tests', function () {
       ]
     });
 
-    Tweet.updateTable(err => {
-      expect(err).to.not.exist;
+    yield Tweet.updateTable()
+    const data = yield Tweet.describeTable()
+    const globalIndexes = _.get(data, 'Table.GlobalSecondaryIndexes');
+    expect(globalIndexes).to.have.length(1);
 
-      Tweet.describeTable((err, data) => {
-        expect(err).to.not.exist;
-
-        const globalIndexes = _.get(data, 'Table.GlobalSecondaryIndexes');
-        expect(globalIndexes).to.have.length(1);
-
-        const idx = _.first(globalIndexes);
-        expect(idx.IndexName).to.eql('PublishedDateTimeIndex');
-        expect(idx.KeySchema).to.eql([{ AttributeName: 'UserId', KeyType: 'HASH' },
-                                      { AttributeName: 'PublishedDateTime', KeyType: 'RANGE' }]);
-        expect(idx.Projection).to.eql({ ProjectionType: 'ALL' });
-
-        return done();
-      });
-    });
-  });
+    const idx = _.first(globalIndexes);
+    expect(idx.IndexName).to.eql('PublishedDateTimeIndex');
+    expect(idx.KeySchema).to.eql([{ AttributeName: 'UserId', KeyType: 'HASH' },
+                                  { AttributeName: 'PublishedDateTime', KeyType: 'RANGE' }]);
+    expect(idx.Projection).to.eql({ ProjectionType: 'ALL' });
+  }));
 });

@@ -1,5 +1,6 @@
 'use strict';
 
+const co = require('co').wrap
 const helper = require('./test-helper');
 const _ = require('lodash');
 const Joi = require('joi');
@@ -12,6 +13,7 @@ const realSerializer = require('../lib/serializer');
 const chai = require('chai');
 const expect = chai.expect;
 const sinon = require('sinon');
+const { promiser } = helper
 
 chai.should();
 
@@ -30,7 +32,7 @@ describe('table', () => {
   });
 
   describe('#get', () => {
-    it('should get item by hash key', done => {
+    it('should get item by hash key', co(function* () {
       const config = {
         hashKey: 'email'
       };
@@ -48,18 +50,14 @@ describe('table', () => {
         Item: { email: 'test@test.com', name: 'test dude' }
       };
 
-      docClient.get.withArgs(request).yields(null, resp);
+      docClient.get.withArgs(request).returns(promiser(null, resp));
+      const account = yield table.get('test@test.com')
+      account.should.be.instanceof(Item);
+      account.get('email').should.equal('test@test.com');
+      account.get('name').should.equal('test dude');
+    }));
 
-      table.get('test@test.com', (err, account) => {
-        account.should.be.instanceof(Item);
-        account.get('email').should.equal('test@test.com');
-        account.get('name').should.equal('test dude');
-
-        done();
-      });
-    });
-
-    it('should get item by hash and range key', done => {
+    it('should get item by hash and range key', co(function* () {
       const config = {
         hashKey: 'name',
         rangeKey: 'email'
@@ -81,18 +79,15 @@ describe('table', () => {
         Item: { email: 'test@test.com', name: 'Tim Tester' }
       };
 
-      docClient.get.withArgs(request).yields(null, resp);
+      docClient.get.withArgs(request).returns(promiser(null, resp));
 
-      table.get('Tim Tester', 'test@test.com', (err, account) => {
-        account.should.be.instanceof(Item);
-        account.get('email').should.equal('test@test.com');
-        account.get('name').should.equal('Tim Tester');
+      const account = yield table.get('Tim Tester', 'test@test.com')
+      account.should.be.instanceof(Item);
+      account.get('email').should.equal('test@test.com');
+      account.get('name').should.equal('Tim Tester');
+    }));
 
-        done();
-      });
-    });
-
-    it('should get item by hash key and options', done => {
+    it('should get item by hash key and options', co(function* () {
       const config = {
         hashKey: 'email',
       };
@@ -111,18 +106,16 @@ describe('table', () => {
         Item: { email: 'test@test.com', name: 'test dude' }
       };
 
-      docClient.get.withArgs(request).yields(null, resp);
+      docClient.get.withArgs(request).returns(promiser(null, resp));
 
-      table.get('test@test.com', { ConsistentRead: true }, (err, account) => {
-        account.should.be.instanceof(Item);
-        account.get('email').should.equal('test@test.com');
-        account.get('name').should.equal('test dude');
+      const account = yield table.get('test@test.com', { ConsistentRead: true })
+      account.should.be.instanceof(Item);
+      account.get('email').should.equal('test@test.com');
+      account.get('name').should.equal('test dude');
 
-        done();
-      });
-    });
+    }));
 
-    it('should get item by hashkey, range key and options', done => {
+    it('should get item by hashkey, range key and options', co(function* () {
       const config = {
         hashKey: 'name',
         rangeKey: 'email',
@@ -145,18 +138,16 @@ describe('table', () => {
         Item: { email: 'test@test.com', name: 'Tim Tester' }
       };
 
-      docClient.get.withArgs(request).yields(null, resp);
+      docClient.get.withArgs(request).returns(promiser(null, resp));
 
-      table.get('Tim Tester', 'test@test.com', { ConsistentRead: true }, (err, account) => {
-        account.should.be.instanceof(Item);
-        account.get('email').should.equal('test@test.com');
-        account.get('name').should.equal('Tim Tester');
+      const account = yield table.get('Tim Tester', 'test@test.com', { ConsistentRead: true })
+      account.should.be.instanceof(Item);
+      account.get('email').should.equal('test@test.com');
+      account.get('name').should.equal('Tim Tester');
 
-        done();
-      });
-    });
+    }));
 
-    it('should get item from dynamic table by hash key', done => {
+    it('should get item from dynamic table by hash key', co(function* () {
       const config = {
         hashKey: 'email',
         tableName: function () {
@@ -177,18 +168,15 @@ describe('table', () => {
         Item: { email: 'test@test.com', name: 'test dude' }
       };
 
-      docClient.get.withArgs(request).yields(null, resp);
+      docClient.get.withArgs(request).returns(promiser(null, resp));
 
-      table.get('test@test.com', (err, account) => {
-        account.should.be.instanceof(Item);
-        account.get('email').should.equal('test@test.com');
-        account.get('name').should.equal('test dude');
+      const account = yield table.get('test@test.com')
+      account.should.be.instanceof(Item);
+      account.get('email').should.equal('test@test.com');
+      account.get('name').should.equal('test dude');
+    }));
 
-        done();
-      });
-    });
-
-    it('should return error', done => {
+    it('should return error', co(function* () {
       const config = {
         hashKey: 'email',
       };
@@ -197,18 +185,23 @@ describe('table', () => {
 
       table = new Table('accounts', s, realSerializer, docClient, logger);
 
-      docClient.get.yields(new Error('Fail'));
+      docClient.get.returns(promiser(new Error('Fail')));
 
-      table.get('test@test.com', (err, account) => {
-        expect(err).to.exist;
-        expect(account).to.not.exist;
-        done();
-      });
-    });
+      let account
+      let err
+      try {
+        account = yield table.get('test@test.com')
+      } catch (e) {
+        err = e
+      }
+
+      expect(err).to.exist;
+      expect(account).to.not.exist;
+    }));
   });
 
   describe('#create', () => {
-    it('should create valid item', done => {
+    it('should create valid item', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -231,20 +224,15 @@ describe('table', () => {
         }
       };
 
-      docClient.put.withArgs(request).yields(null, {});
+      docClient.put.withArgs(request).returns(promiser(null, {}));
 
-      table.create(request.Item, (err, account) => {
-        expect(err).to.not.exist;
-        account.should.be.instanceof(Item);
+      const account = yield table.create(request.Item)
+      account.should.be.instanceof(Item);
+      account.get('email').should.equal('test@test.com');
+      account.get('name').should.equal('Tim Test');
+    }));
 
-        account.get('email').should.equal('test@test.com');
-        account.get('name').should.equal('Tim Test');
-
-        done();
-      });
-    });
-
-    it('should call apply defaults', done => {
+    it('should call apply defaults', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -267,20 +255,17 @@ describe('table', () => {
         }
       };
 
-      docClient.put.withArgs(request).yields(null, {});
+      docClient.put.withArgs(request).returns(promiser(null, {}));
 
-      table.create({ email: 'test@test.com', age: 23 }, (err, account) => {
-        expect(err).to.not.exist;
-        account.should.be.instanceof(Item);
+      const account = yield table.create({ email: 'test@test.com', age: 23 })
+      account.should.be.instanceof(Item);
 
-        account.get('email').should.equal('test@test.com');
-        account.get('name').should.equal('Foo');
+      account.get('email').should.equal('test@test.com');
+      account.get('name').should.equal('Foo');
 
-        done();
-      });
-    });
+    }));
 
-    it('should omit null values', done => {
+    it('should omit null values', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -314,23 +299,20 @@ describe('table', () => {
         }
       };
 
-      docClient.put.withArgs(request).yields(null, {});
+      docClient.put.withArgs(request).returns(promiser(null, {}));
 
       const item = { email: 'test@test.com', name: 'Tim Test', age: null, favoriteNumbers: [], luckyNumbers: [1, 2, 3] };
-      table.create(item, (err, account) => {
-        account.should.be.instanceof(Item);
+      const account = yield table.create(item)
+      account.should.be.instanceof(Item);
 
-        account.get('email').should.equal('test@test.com');
-        account.get('name').should.equal('Tim Test');
-        account.get('luckyNumbers').should.eql([1, 2, 3]);
+      account.get('email').should.equal('test@test.com');
+      account.get('name').should.equal('Tim Test');
+      account.get('luckyNumbers').should.eql([1, 2, 3]);
 
-        expect(account.toJSON()).to.have.keys(['email', 'name', 'luckyNumbers']);
+      expect(account.toJSON()).to.have.keys(['email', 'name', 'luckyNumbers']);
+    }));
 
-        done();
-      });
-    });
-
-    it('should omit empty values', done => {
+    it('should omit empty values', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -352,20 +334,17 @@ describe('table', () => {
         }
       };
 
-      docClient.put.withArgs(request).yields(null, {});
+      docClient.put.withArgs(request).returns(promiser(null, {}));
 
-      table.create({ email: 'test@test.com', name: '', age: 2 }, (err, account) => {
-        expect(err).to.not.exist;
-        account.should.be.instanceof(Item);
+      const account = yield table.create({ email: 'test@test.com', name: '', age: 2 })
+      account.should.be.instanceof(Item);
 
-        account.get('email').should.equal('test@test.com');
-        account.get('age').should.equal(2);
+      account.get('email').should.equal('test@test.com');
+      account.get('age').should.equal(2);
 
-        done();
-      });
-    });
+    }));
 
-    it('should create item with createdAt timestamp', done => {
+    it('should create item with createdAt timestamp', co(function* () {
       const config = {
         hashKey: 'email',
         timestamps: true,
@@ -386,19 +365,16 @@ describe('table', () => {
         }
       };
 
-      docClient.put.withArgs(request).yields(null, {});
+      docClient.put.withArgs(request).returns(promiser(null, {}));
 
-      table.create({ email: 'test@test.com' }, (err, account) => {
-        expect(err).to.not.exist;
-        account.should.be.instanceof(Item);
+      const account = yield table.create({ email: 'test@test.com' })
+      account.should.be.instanceof(Item);
 
-        account.get('email').should.equal('test@test.com');
-        account.get('createdAt').should.exist;
-        done();
-      });
-    });
+      account.get('email').should.equal('test@test.com');
+      account.get('createdAt').should.exist;
+    }));
 
-    it('should create item with custom createdAt attribute name', done => {
+    it('should create item with custom createdAt attribute name', co(function* () {
       const config = {
         hashKey: 'email',
         timestamps: true,
@@ -420,20 +396,17 @@ describe('table', () => {
         }
       };
 
-      docClient.put.withArgs(request).yields(null, {});
+      docClient.put.withArgs(request).returns(promiser(null, {}));
 
-      table.create({ email: 'test@test.com' }, (err, account) => {
-        expect(err).to.not.exist;
-        account.should.be.instanceof(Item);
+      const account = yield table.create({ email: 'test@test.com' })
+      account.should.be.instanceof(Item);
 
-        account.get('email').should.equal('test@test.com');
-        account.get('created').should.exist;
-        done();
-      });
-    });
+      account.get('email').should.equal('test@test.com');
+      account.get('created').should.exist;
+    }));
 
 
-    it('should create item without createdAt param', done => {
+    it('should create item without createdAt param', co(function* () {
       const config = {
         hashKey: 'email',
         timestamps: true,
@@ -454,19 +427,16 @@ describe('table', () => {
         }
       };
 
-      docClient.put.withArgs(request).yields(null, {});
+      docClient.put.withArgs(request).returns(promiser(null, {}));
 
-      table.create({ email: 'test@test.com' }, (err, account) => {
-        expect(err).to.not.exist;
-        account.should.be.instanceof(Item);
+      const account = yield table.create({ email: 'test@test.com' })
+      account.should.be.instanceof(Item);
 
-        account.get('email').should.equal('test@test.com');
-        expect(account.get('createdAt')).to.not.exist;
-        done();
-      });
-    });
+      account.get('email').should.equal('test@test.com');
+      expect(account.get('createdAt')).to.not.exist;
+    }));
 
-    it('should create item with expected option', done => {
+    it('should create item with expected option', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -489,21 +459,17 @@ describe('table', () => {
         ConditionExpression: '(#name = :name)'
       };
 
-      docClient.put.withArgs(request).yields(null, {});
+      docClient.put.withArgs(request).returns(promiser(null, {}));
 
-      table.create({ email: 'test@test.com' }, { expected: { name: 'Foo Bar' } }, (err, account) => {
-        expect(err).to.not.exist;
-        account.should.be.instanceof(Item);
+      const account = yield table.create({ email: 'test@test.com' }, { expected: { name: 'Foo Bar' } })
+      account.should.be.instanceof(Item);
 
-        account.get('email').should.equal('test@test.com');
-        done();
-      });
-    });
+      account.get('email').should.equal('test@test.com');
+    }));
 
-    it('should create item with no callback', done => {
+    it('should create item with no callback', co(function* () {
       const config = {
         hashKey: 'email',
-        timestamps: true,
         schema: {
           email: Joi.string(),
         }
@@ -520,15 +486,14 @@ describe('table', () => {
         }
       };
 
-      docClient.put.withArgs(request).yields(null, {});
+      docClient.put.withArgs(request).returns(promiser(null, {}));
 
-      table.create({ email: 'test@test.com' });
+      yield table.create({ email: 'test@test.com' });
 
       docClient.put.calledWith(request);
-      return done();
-    });
+    }));
 
-    it('should return validation error', done => {
+    it('should return validation error', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -541,17 +506,17 @@ describe('table', () => {
 
       table = new Table('accounts', s, realSerializer, docClient, logger);
 
-      table.create({ email: 'test@test.com', name: [1, 2, 3] }, (err, account) => {
-        expect(err).to.exist;
+      try {
+        yield table.create({ email: 'test@test.com', name: [1, 2, 3] })
+        throw new Error('should have failed to create')
+      } catch (err) {
         expect(err).to.match(/ValidationError/);
-        expect(account).to.not.exist;
-
         sinon.assert.notCalled(docClient.put);
-        done();
-      });
-    });
+      }
 
-    it('should create item with condition expression on hashkey when overwrite flag is false', done => {
+    }));
+
+    it('should create item with condition expression on hashkey when overwrite flag is false', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -575,18 +540,15 @@ describe('table', () => {
         ConditionExpression: '(#email <> :email)'
       };
 
-      docClient.put.withArgs(request).yields(null, {});
+      docClient.put.withArgs(request).returns(promiser(null, {}));
 
-      table.create({ email: 'test@test.com', name: 'Bob Tester' }, { overwrite: false }, (err, account) => {
-        expect(err).to.not.exist;
-        account.should.be.instanceof(Item);
+      const account = yield table.create({ email: 'test@test.com', name: 'Bob Tester' }, { overwrite: false })
+      account.should.be.instanceof(Item);
 
-        account.get('email').should.equal('test@test.com');
-        done();
-      });
-    });
+      account.get('email').should.equal('test@test.com');
+    }));
 
-    it('should create item with condition expression on hash and range key when overwrite flag is false', done => {
+    it('should create item with condition expression on hash and range key when overwrite flag is false', co(function* () {
       const config = {
         hashKey: 'email',
         rangeKey: 'name',
@@ -611,18 +573,15 @@ describe('table', () => {
         ConditionExpression: '(#email <> :email) AND (#name <> :name)'
       };
 
-      docClient.put.withArgs(request).yields(null, {});
+      docClient.put.withArgs(request).returns(promiser(null, {}));
 
-      table.create({ email: 'test@test.com', name: 'Bob Tester' }, { overwrite: false }, (err, account) => {
-        expect(err).to.not.exist;
-        account.should.be.instanceof(Item);
+      const account = yield table.create({ email: 'test@test.com', name: 'Bob Tester' }, { overwrite: false })
+      account.should.be.instanceof(Item);
 
-        account.get('email').should.equal('test@test.com');
-        done();
-      });
-    });
+      account.get('email').should.equal('test@test.com');
+    }));
 
-    it('should create item without condition expression when overwrite flag is true', done => {
+    it('should create item without condition expression when overwrite flag is true', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -643,20 +602,17 @@ describe('table', () => {
         }
       };
 
-      docClient.put.withArgs(request).yields(null, {});
+      docClient.put.withArgs(request).returns(promiser(null, {}));
 
-      table.create({ email: 'test@test.com', name: 'Bob Tester' }, { overwrite: true }, (err, account) => {
-        expect(err).to.not.exist;
-        account.should.be.instanceof(Item);
+      const account = yield table.create({ email: 'test@test.com', name: 'Bob Tester' }, { overwrite: true })
+      account.should.be.instanceof(Item);
 
-        account.get('email').should.equal('test@test.com');
-        done();
-      });
-    });
+      account.get('email').should.equal('test@test.com');
+    }));
   });
 
   describe('#update', () => {
-    it('should update valid item', done => {
+    it('should update valid item', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -686,22 +642,19 @@ describe('table', () => {
         scores: [97, 86]
       };
 
-      docClient.update.withArgs(request).yields(null, { Attributes: returnedAttributes });
+      docClient.update.withArgs(request).returns(promiser(null, { Attributes: returnedAttributes }));
 
       const item = { email: 'test@test.com', name: 'Tim Test', age: 23 };
-      table.update(item, (err, account) => {
-        account.should.be.instanceof(Item);
+      const account = yield table.update(item)
+      account.should.be.instanceof(Item);
 
-        account.get('email').should.equal('test@test.com');
-        account.get('name').should.equal('Tim Test');
-        account.get('age').should.equal(23);
-        account.get('scores').should.eql([97, 86]);
+      account.get('email').should.equal('test@test.com');
+      account.get('name').should.equal('Tim Test');
+      account.get('age').should.equal(23);
+      account.get('scores').should.eql([97, 86]);
+    }));
 
-        done();
-      });
-    });
-
-    it('should accept falsy key and range values', done => {
+    it('should accept falsy key and range values', co(function* () {
       const config = {
         hashKey: 'userId',
         rangeKey: 'timeOffset',
@@ -723,22 +676,18 @@ describe('table', () => {
 
       const returnedAttributes = { userId: 0, timeOffset: 0 };
 
-      docClient.update.withArgs(request).yields(null, { Attributes: returnedAttributes });
+      docClient.update.withArgs(request).returns(promiser(null, { Attributes: returnedAttributes }));
 
       const item = { userId: 0, timeOffset: 0 };
-      table.update(item, (err, user) => {
-        expect(err).to.be.null;
+      const user = yield table.update(item)
+      user.should.be.instanceof(Item);
 
-        user.should.be.instanceof(Item);
+      user.get('userId').should.equal(0);
+      user.get('timeOffset').should.equal(0);
 
-        user.get('userId').should.equal(0);
-        user.get('timeOffset').should.equal(0);
+    }));
 
-        done();
-      });
-    });
-
-    it('should update with passed in options', done => {
+    it('should update with passed in options', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -771,7 +720,7 @@ describe('table', () => {
 
       const item = { email: 'test@test.com', name: 'Tim Test', age: 23 };
 
-      docClient.update.withArgs(request).yields(null, { Attributes: returnedAttributes });
+      docClient.update.withArgs(request).returns(promiser(null, { Attributes: returnedAttributes }));
 
       const getOptions = function () {
         return { ReturnValues: 'ALL_OLD', expected: { name: 'Foo Bar' } };
@@ -779,21 +728,19 @@ describe('table', () => {
 
       const passedOptions = getOptions();
 
-      table.update(item, passedOptions, (err, account) => {
-        account.should.be.instanceof(Item);
+      const account = yield table.update(item, passedOptions)
+      account.should.be.instanceof(Item);
 
-        account.get('email').should.equal('test@test.com');
-        account.get('name').should.equal('Tim Test');
-        account.get('age').should.equal(23);
-        account.get('scores').should.eql([97, 86]);
+      account.get('email').should.equal('test@test.com');
+      account.get('name').should.equal('Tim Test');
+      account.get('age').should.equal(23);
+      account.get('scores').should.eql([97, 86]);
 
-        expect(passedOptions).to.deep.equal(getOptions());
+      expect(passedOptions).to.deep.equal(getOptions());
 
-        done();
-      });
-    });
+    }));
 
-    it('should update merge update expressions when passed in as options', done => {
+    it('should update merge update expressions when passed in as options', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -826,7 +773,7 @@ describe('table', () => {
 
       const item = { email: 'test@test.com', name: 'Tim Test', age: 23 };
 
-      docClient.update.withArgs(request).yields(null, { Attributes: returnedAttributes });
+      docClient.update.withArgs(request).returns(promiser(null, { Attributes: returnedAttributes }));
 
       const options = {
         UpdateExpression: 'ADD #color :c',
@@ -834,20 +781,18 @@ describe('table', () => {
         ExpressionAttributeNames: { '#color': 'color' }
       };
 
-      table.update(item, options, (err, account) => {
-        account.should.be.instanceof(Item);
+      const account = yield table.update(item, options)
+      account.should.be.instanceof(Item);
 
-        account.get('email').should.equal('test@test.com');
-        account.get('name').should.equal('Tim Test');
-        account.get('age').should.equal(23);
-        account.get('scores').should.eql([97, 86]);
-        account.get('color').should.eql('red');
+      account.get('email').should.equal('test@test.com');
+      account.get('name').should.equal('Tim Test');
+      account.get('age').should.equal(23);
+      account.get('scores').should.eql([97, 86]);
+      account.get('color').should.eql('red');
 
-        done();
-      });
-    });
+    }));
 
-    it('should update valid item without a callback', done => {
+    it('should update valid item without a callback', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -877,16 +822,15 @@ describe('table', () => {
         scores: [97, 86]
       };
 
-      docClient.update.withArgs(request).yields(null, { Attributes: returnedAttributes });
+      docClient.update.withArgs(request).returns(promiser(null, { Attributes: returnedAttributes }));
 
       const item = { email: 'test@test.com', name: 'Tim Test', age: 23 };
       table.update(item);
 
       docClient.update.calledWith(request);
-      return done();
-    });
+    }));
 
-    it('should return error', done => {
+    it('should return error', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -900,18 +844,23 @@ describe('table', () => {
 
       table = new Table('accounts', s, realSerializer, docClient, logger);
 
-      docClient.update.yields(new Error('Fail'));
+      docClient.update.returns(promiser(new Error('Fail')));
 
       const item = { email: 'test@test.com', name: 'Tim Test', age: 23 };
 
-      table.update(item, (err, account) => {
-        expect(err).to.exist;
-        expect(account).to.not.exist;
-        done();
-      });
-    });
+      let account
+      let err
+      try {
+        account = yield table.update(item)
+      } catch (e) {
+        err = e
+      }
 
-    it('should handle errors regarding invalid expressions', (done) => {
+      expect(err).to.exist;
+      expect(account).to.not.exist;
+    }));
+
+    it('should handle errors regarding invalid expressions', co(function* () {
       const config = {
         hashKey: 'name',
         schema: {
@@ -926,12 +875,17 @@ describe('table', () => {
 
       const item = { name: 'Dr. Who', birthday: undefined };
 
-      table.update(item, (err, account) => {
-        expect(err).to.exist;
-        expect(account).to.not.exist;
-        done();
-      });
-    });
+      let account
+      let err
+      try {
+        yield table.update(item)
+      } catch (e) {
+        err = e
+      }
+
+      expect(err).to.exist;
+      expect(account).to.not.exist;
+    }));
   });
 
   describe('#query', () => {
@@ -973,7 +927,7 @@ describe('table', () => {
   });
 
   describe('#destroy', () => {
-    it('should destroy valid item', done => {
+    it('should destroy valid item', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -994,19 +948,18 @@ describe('table', () => {
         }
       };
 
-      docClient.delete.yields(null, {});
+      docClient.delete.returns(promiser(null, {}));
 
       serializer.buildKey.returns(request.Key);
 
-      table.destroy('test@test.com', () => {
-        serializer.buildKey.calledWith('test@test.com', null, s).should.be.true;
-        docClient.delete.calledWith(request).should.be.true;
+      yield table.destroy('test@test.com')
 
-        done();
-      });
-    });
+      serializer.buildKey.calledWith('test@test.com', undefined, s).should.be.true;
+      docClient.delete.calledWith(request).should.be.true;
 
-    it('should destroy valid item with falsy hash and range keys', done => {
+    }));
+
+    it('should destroy valid item with falsy hash and range keys', co(function* () {
       const config = {
         hashKey: 'userId',
         rangeKey: 'timeOffset',
@@ -1028,19 +981,17 @@ describe('table', () => {
         }
       };
 
-      docClient.delete.yields(null, {});
+      docClient.delete.returns(promiser(null, {}));
 
       serializer.buildKey.returns(request.Key);
 
-      table.destroy({ userId: 0, timeOffset: 0 }, () => {
-        serializer.buildKey.calledWith(0, 0, s).should.be.true;
-        docClient.delete.calledWith(request).should.be.true;
+      yield table.destroy({ userId: 0, timeOffset: 0 })
+      serializer.buildKey.calledWith(0, 0, s).should.be.true;
+      docClient.delete.calledWith(request).should.be.true;
 
-        done();
-      });
-    });
+    }));
 
-    it('should take optional params', done => {
+    it('should take optional params', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -1062,19 +1013,17 @@ describe('table', () => {
         ReturnValues: 'ALL_OLD'
       };
 
-      docClient.delete.yields(null, {});
+      docClient.delete.returns(promiser(null, {}));
 
       serializer.buildKey.returns(request.Key);
 
-      table.destroy('test@test.com', { ReturnValues: 'ALL_OLD' }, () => {
-        serializer.buildKey.calledWith('test@test.com', null, s).should.be.true;
-        docClient.delete.calledWith(request).should.be.true;
+      yield table.destroy('test@test.com', { ReturnValues: 'ALL_OLD' })
+      serializer.buildKey.calledWith('test@test.com', undefined, s).should.be.true;
+      docClient.delete.calledWith(request).should.be.true;
 
-        done();
-      });
-    });
+    }));
 
-    it('should parse and return attributes', done => {
+    it('should parse and return attributes', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -1099,24 +1048,22 @@ describe('table', () => {
         name: 'Foo Bar'
       };
 
-      docClient.delete.yields(null, { Attributes: returnedAttributes });
+      docClient.delete.returns(promiser(null, { Attributes: returnedAttributes }));
 
       serializer.buildKey.returns(request.Key);
       serializer.deserializeItem.withArgs(returnedAttributes).returns(
         { email: 'test@test.com', name: 'Foo Bar'
       });
 
-      table.destroy('test@test.com', { ReturnValues: 'ALL_OLD' }, (err, item) => {
-        serializer.buildKey.calledWith('test@test.com', null, s).should.be.true;
-        docClient.delete.calledWith(request).should.be.true;
+      const item = yield table.destroy('test@test.com', { ReturnValues: 'ALL_OLD' })
+      serializer.buildKey.calledWith('test@test.com', undefined, s).should.be.true;
+      docClient.delete.calledWith(request).should.be.true;
 
-        item.get('name').should.equal('Foo Bar');
+      item.get('name').should.equal('Foo Bar');
 
-        done();
-      });
-    });
+    }));
 
-    it('should accept hash and range key', done => {
+    it('should accept hash and range key', co(function* () {
       const config = {
         hashKey: 'email',
         rangeKey: 'name',
@@ -1144,24 +1091,22 @@ describe('table', () => {
         name: 'Foo Bar'
       };
 
-      docClient.delete.yields(null, { Attributes: returnedAttributes });
+      docClient.delete.returns(promiser(null, { Attributes: returnedAttributes }));
 
       serializer.buildKey.returns(request.Key);
       serializer.deserializeItem.withArgs(returnedAttributes).returns(
         { email: 'test@test.com', name: 'Foo Bar'
       });
 
-      table.destroy('test@test.com', 'Foo Bar', (err, item) => {
-        serializer.buildKey.calledWith('test@test.com', 'Foo Bar', s).should.be.true;
-        docClient.delete.calledWith(request).should.be.true;
+      const item = yield table.destroy('test@test.com', 'Foo Bar')
+      serializer.buildKey.calledWith('test@test.com', 'Foo Bar', s).should.be.true;
+      docClient.delete.calledWith(request).should.be.true;
 
-        item.get('name').should.equal('Foo Bar');
+      item.get('name').should.equal('Foo Bar');
 
-        done();
-      });
-    });
+    }));
 
-    it('should accept hashkey rangekey and options', done => {
+    it('should accept hashkey rangekey and options', co(function* () {
       const config = {
         hashKey: 'email',
         rangeKey: 'name',
@@ -1190,24 +1135,22 @@ describe('table', () => {
         name: 'Foo Bar'
       };
 
-      docClient.delete.yields(null, { Attributes: returnedAttributes });
+      docClient.delete.returns(promiser(null, { Attributes: returnedAttributes }));
 
       serializer.buildKey.returns(request.Key);
       serializer.deserializeItem.withArgs(returnedAttributes).returns(
         { email: 'test@test.com', name: 'Foo Bar'
       });
 
-      table.destroy('test@test.com', 'Foo Bar', { ReturnValues: 'ALL_OLD' }, (err, item) => {
-        serializer.buildKey.calledWith('test@test.com', 'Foo Bar', s).should.be.true;
-        docClient.delete.calledWith(request).should.be.true;
+      const item = yield table.destroy('test@test.com', 'Foo Bar', { ReturnValues: 'ALL_OLD' })
+      serializer.buildKey.calledWith('test@test.com', 'Foo Bar', s).should.be.true;
+      docClient.delete.calledWith(request).should.be.true;
 
-        item.get('name').should.equal('Foo Bar');
+      item.get('name').should.equal('Foo Bar');
 
-        done();
-      });
-    });
+    }));
 
-    it('should serialize expected option', done => {
+    it('should serialize expected option', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -1231,20 +1174,18 @@ describe('table', () => {
         ConditionExpression: '(#name = :name)'
       };
 
-      docClient.delete.yields(null, {});
+      docClient.delete.returns(promiser(null, {}));
 
       serializer.serializeItem.withArgs(s, { name: 'Foo Bar' }, { expected: true }).returns(request.Expected);
       serializer.buildKey.returns(request.Key);
 
-      table.destroy('test@test.com', { expected: { name: 'Foo Bar' } }, () => {
-        serializer.buildKey.calledWith('test@test.com', null, s).should.be.true;
-        docClient.delete.calledWith(request).should.be.true;
+      yield table.destroy('test@test.com', { expected: { name: 'Foo Bar' } })
+      serializer.buildKey.calledWith('test@test.com', undefined, s).should.be.true;
+      docClient.delete.calledWith(request).should.be.true;
 
-        done();
-      });
-    });
+    }));
 
-    it('should call delete item without callback', done => {
+    it('should call delete item without callback', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -1265,15 +1206,13 @@ describe('table', () => {
         }
       };
 
-      docClient.delete.yields(null, {});
+      docClient.delete.returns(promiser(null, {}));
       table.destroy('test@test.com');
 
       docClient.delete.calledWith(request);
+    }));
 
-      return done();
-    });
-
-    it('should call delete item with hash key, options and no callback', done => {
+    it('should call delete item with hash key, options and no callback', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -1297,17 +1236,16 @@ describe('table', () => {
         }
       };
 
-      docClient.delete.yields(null, {});
+      docClient.delete.returns(promiser(null, {}));
       table.destroy('test@test.com', { expected: { name: 'Foo Bar' } });
 
       docClient.delete.calledWith(request);
 
-      return done();
-    });
+    }));
   });
 
   describe('#createTable', () => {
-    it('should create table with hash key', done => {
+    it('should create table with hash key', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -1331,16 +1269,13 @@ describe('table', () => {
         ProvisionedThroughput: { ReadCapacityUnits: 5, WriteCapacityUnits: 5 }
       };
 
-      dynamodb.createTable.yields(null, {});
+      dynamodb.createTable.returns(promiser(null, {}));
 
-      table.createTable({ readCapacity: 5, writeCapacity: 5 }, err => {
-        expect(err).to.be.null;
-        dynamodb.createTable.calledWith(request).should.be.true;
-        done();
-      });
-    });
+      yield table.createTable({ readCapacity: 5, writeCapacity: 5 })
+      dynamodb.createTable.calledWith(request).should.be.true;
+    }));
 
-    it('should create table with range key', done => {
+    it('should create table with range key', co(function* () {
       const config = {
         hashKey: 'name',
         rangeKey: 'email',
@@ -1367,16 +1302,13 @@ describe('table', () => {
         ProvisionedThroughput: { ReadCapacityUnits: 5, WriteCapacityUnits: 5 }
       };
 
-      dynamodb.createTable.yields(null, {});
+      dynamodb.createTable.returns(promiser(null, {}));
 
-      table.createTable({ readCapacity: 5, writeCapacity: 5 }, err => {
-        expect(err).to.be.null;
-        dynamodb.createTable.calledWith(request).should.be.true;
-        done();
-      });
-    });
+      yield table.createTable({ readCapacity: 5, writeCapacity: 5 })
+      dynamodb.createTable.calledWith(request).should.be.true;
+    }));
 
-    it('should create table with stream specification', done => {
+    it('should create table with stream specification', co(function* () {
       const config = {
         hashKey: 'name',
         schema: {
@@ -1401,23 +1333,21 @@ describe('table', () => {
         StreamSpecification: { StreamEnabled: true, StreamViewType: 'NEW_IMAGE' }
       };
 
-      dynamodb.createTable.yields(null, {});
+      dynamodb.createTable.returns(promiser(null, {}));
 
-      table.createTable({
+      yield table.createTable({
         readCapacity: 5,
         writeCapacity: 5,
         streamSpecification: {
           streamEnabled: true,
           streamViewType: 'NEW_IMAGE'
         }
-      }, err => {
-        expect(err).to.be.null;
-        dynamodb.createTable.calledWith(request).should.be.true;
-        done();
-      });
-    });
+      })
 
-    it('should create table with secondary index', done => {
+      dynamodb.createTable.calledWith(request).should.be.true;
+    }));
+
+    it('should create table with secondary index', co(function* () {
       const config = {
         hashKey: 'name',
         rangeKey: 'email',
@@ -1461,16 +1391,13 @@ describe('table', () => {
         ProvisionedThroughput: { ReadCapacityUnits: 5, WriteCapacityUnits: 5 }
       };
 
-      dynamodb.createTable.yields(null, {});
+      dynamodb.createTable.returns(promiser(null, {}));
 
-      table.createTable({ readCapacity: 5, writeCapacity: 5 }, err => {
-        expect(err).to.be.null;
-        dynamodb.createTable.calledWith(request).should.be.true;
-        done();
-      });
-    });
+      yield table.createTable({ readCapacity: 5, writeCapacity: 5 })
+      dynamodb.createTable.calledWith(request).should.be.true;
+    }));
 
-    it('should create table with global secondary index', done => {
+    it('should create table with global secondary index', co(function* () {
       const config = {
         hashKey: 'userId',
         rangeKey: 'gameTitle',
@@ -1515,16 +1442,13 @@ describe('table', () => {
         ProvisionedThroughput: { ReadCapacityUnits: 5, WriteCapacityUnits: 5 }
       };
 
-      dynamodb.createTable.yields(null, {});
+      dynamodb.createTable.returns(promiser(null, {}));
 
-      table.createTable({ readCapacity: 5, writeCapacity: 5 }, err => {
-        expect(err).to.be.null;
-        dynamodb.createTable.calledWith(request).should.be.true;
-        done();
-      });
-    });
+      yield table.createTable({ readCapacity: 5, writeCapacity: 5 })
+      dynamodb.createTable.calledWith(request).should.be.true;
+    }));
 
-    it('should create table with global secondary index', done => {
+    it('should create table with global secondary index', co(function* () {
       const config = {
         hashKey: 'userId',
         rangeKey: 'gameTitle',
@@ -1576,18 +1500,15 @@ describe('table', () => {
         ProvisionedThroughput: { ReadCapacityUnits: 5, WriteCapacityUnits: 5 }
       };
 
-      dynamodb.createTable.yields(null, {});
+      dynamodb.createTable.returns(promiser(null, {}));
 
-      table.createTable({ readCapacity: 5, writeCapacity: 5 }, err => {
-        expect(err).to.be.null;
-        dynamodb.createTable.calledWith(request).should.be.true;
-        done();
-      });
-    });
+      yield table.createTable({ readCapacity: 5, writeCapacity: 5 })
+      dynamodb.createTable.calledWith(request).should.be.true;
+    }));
   });
 
   describe('#describeTable', () => {
-    it('should make describe table request', done => {
+    it('should make describe table request', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -1604,14 +1525,11 @@ describe('table', () => {
         TableName: 'accounts'
       };
 
-      dynamodb.describeTable.yields(null, {});
+      dynamodb.describeTable.returns(promiser(null, {}));
 
-      table.describeTable(err => {
-        expect(err).to.be.null;
-        dynamodb.describeTable.calledWith(request).should.be.true;
-        done();
-      });
-    });
+      yield table.describeTable()
+      dynamodb.describeTable.calledWith(request).should.be.true;
+    }));
   });
 
   describe('#updateTable', () => {
@@ -1629,34 +1547,18 @@ describe('table', () => {
       table = new Table('accounts', s, serializer, docClient, logger);
     });
 
-    it('should make update table request', done => {
+    it('should make update table request', co(function* () {
       const request = {
         TableName: 'accounts',
         ProvisionedThroughput: { ReadCapacityUnits: 4, WriteCapacityUnits: 2 }
       };
 
-      dynamodb.describeTable.yields(null, {});
-      dynamodb.updateTable.yields(null, {});
+      dynamodb.describeTable.returns(promiser(null, {}));
+      dynamodb.updateTable.returns(promiser(null, {}));
 
-      table.updateTable({ readCapacity: 4, writeCapacity: 2 }, err => {
-        expect(err).to.be.null;
-        dynamodb.updateTable.calledWith(request).should.be.true;
-        done();
-      });
-    });
-
-    it('should make update table request without callback', done => {
-      const request = {
-        TableName: 'accounts',
-        ProvisionedThroughput: { ReadCapacityUnits: 2, WriteCapacityUnits: 1 }
-      };
-
-      table.updateTable({ readCapacity: 2, writeCapacity: 1 });
-
+      yield table.updateTable({ readCapacity: 4, writeCapacity: 2 })
       dynamodb.updateTable.calledWith(request).should.be.true;
-
-      return done();
-    });
+    }));
   });
 
   describe('#deleteTable', () => {
@@ -1674,31 +1576,18 @@ describe('table', () => {
       table = new Table('accounts', s, serializer, docClient, logger);
     });
 
-    it('should make delete table request', done => {
+    it('should make delete table request', co(function* () {
       const request = {
         TableName: 'accounts'
       };
 
-      dynamodb.deleteTable.yields(null, {});
+      dynamodb.deleteTable.returns(promiser(null, {}));
 
       table.deleteTable(err => {
         expect(err).to.be.null;
         dynamodb.deleteTable.calledWith(request).should.be.true;
-        done();
       });
-    });
-
-    it('should make delete table request without callback', done => {
-      const request = {
-        TableName: 'accounts',
-      };
-
-      table.deleteTable();
-
-      dynamodb.deleteTable.calledWith(request).should.be.true;
-
-      return done();
-    });
+    }));
   });
 
   describe('#tableName', () => {
@@ -1760,7 +1649,7 @@ describe('table', () => {
 
   describe('hooks', () => {
     describe('#create', () => {
-      it('should call before hooks', done => {
+      it('should call before hooks', co(function* () {
         const config = {
           hashKey: 'email',
           schema: {
@@ -1775,34 +1664,29 @@ describe('table', () => {
         table = new Table('accounts', s, serializer, docClient, logger);
 
         const item = { email: 'test@test.com', name: 'Tim Test', age: 23 };
-        docClient.put.yields(null, {});
+        docClient.put.returns(promiser(null, {}));
 
         serializer.serializeItem.withArgs(s, { email: 'test@test.com', name: 'Tommy', age: 23 }).returns({});
 
-        table.before('create', (data, next) => {
+        table.before('create', co(function* (data) {
           expect(data).to.exist;
           data.name = 'Tommy';
+          return data
+        }));
 
-          return next(null, data);
-        });
-
-        table.before('create', (data, next) => {
+        table.before('create', co(function* (data) {
           expect(data).to.exist;
           data.age = '25';
+          return data
+        }));
 
-          return next(null, data);
-        });
+        const created = yield table.create(item)
+        created.get('name').should.equal('Tommy');
+        created.get('age').should.equal('25');
 
-        table.create(item, (err, item) => {
-          expect(err).to.not.exist;
-          item.get('name').should.equal('Tommy');
-          item.get('age').should.equal('25');
+      }));
 
-          return done();
-        });
-      });
-
-      it('should return error when before hook returns error', done => {
+      it('should return error when before hook returns error', co(function* () {
         const config = {
           hashKey: 'email',
           schema: {
@@ -1816,17 +1700,23 @@ describe('table', () => {
 
         table = new Table('accounts', s, serializer, docClient, logger);
 
-        table.before('create', (data, next) => next(new Error('fail')));
+        table.before('create', co(function* () {
+          throw new Error('fail')
+        }));
 
-        table.create({ email: 'foo@bar.com' }, (err, item) => {
-          expect(err).to.exist;
-          expect(item).to.not.exist;
+        let item
+        let err
+        try {
+          yield table.create({ email: 'foo@bar.com' })
+        } catch (e) {
+          err = e
+        }
 
-          return done();
-        });
-      });
+        expect(err).to.exist;
+        expect(item).to.not.exist;
+      }));
 
-      it('should call after hook', done => {
+      it('should call after hook', co(function* () {
         const config = {
           hashKey: 'email',
           schema: {
@@ -1841,22 +1731,20 @@ describe('table', () => {
         table = new Table('accounts', s, serializer, docClient, logger);
 
         const item = { email: 'test@test.com', name: 'Tim Test', age: 23 };
-        docClient.put.yields(null, {});
+        docClient.put.returns(promiser(null, {}));
 
         serializer.serializeItem.withArgs(s, item).returns({});
 
         table.after('create', data => {
           expect(data).to.exist;
-
-          return done();
         });
 
-        table.create(item, () => {});
-      });
+        table.create(item);
+      }));
     });
 
     describe('#update', () => {
-      it('should call before hook', done => {
+      it('should call before hook', co(function* () {
         const config = {
           hashKey: 'email',
           schema: {
@@ -1871,7 +1759,7 @@ describe('table', () => {
         table = new Table('accounts', s, serializer, docClient, logger);
 
         const item = { email: 'test@test.com', name: 'Tim Test', age: 23 };
-        docClient.update.yields(null, {});
+        docClient.update.returns(promiser(null, {}));
 
         serializer.serializeItem.withArgs(s, item).returns({});
 
@@ -1880,24 +1768,23 @@ describe('table', () => {
         serializer.serializeItemForUpdate.withArgs(s, 'PUT', modified).returns({});
 
         serializer.deserializeItem.returns(modified);
-        docClient.update.yields(null, {});
+        docClient.update.returns(promiser(null, {}));
 
         let called = false;
-        table.before('update', (data, next) => {
+        table.before('update', co(function* (data) {
           const attrs = _.merge({}, data, { age: 44 });
           called = true;
-          return next(null, attrs);
-        });
+          return attrs
+        }));
 
         table.after('update', () => {
           expect(called).to.be.true;
-          return done();
         });
 
-        table.update(item, () => {});
-      });
+        table.update(item);
+      }));
 
-      it('should return error when before hook returns error', done => {
+      it('should return error when before hook returns error', co(function* () {
         const config = {
           hashKey: 'email',
           schema: {
@@ -1911,17 +1798,22 @@ describe('table', () => {
 
         table = new Table('accounts', s, serializer, docClient, logger);
 
-        table.before('update', (data, next) => next(new Error('fail')));
+        table.before('update', co(function* () {
+          throw new Error('fail')
+        }))
 
-        table.update({}, err => {
-          expect(err).to.exist;
-          err.message.should.equal('fail');
+        let err
+        try {
+          yield table.update({})
+        } catch (e) {
+          err = e
+        }
 
-          return done();
-        });
-      });
+        expect(err).to.exist;
+        err.message.should.equal('fail');
+      }));
 
-      it('should call after hook', done => {
+      it('should call after hook', co(function* () {
         const config = {
           hashKey: 'email',
           schema: {
@@ -1936,7 +1828,7 @@ describe('table', () => {
         table = new Table('accounts', s, serializer, docClient, logger);
 
         const item = { email: 'test@test.com', name: 'Tim Test', age: 23 };
-        docClient.update.yields(null, {});
+        docClient.update.returns(promiser(null, {}));
 
         serializer.serializeItem.withArgs(s, item).returns({});
 
@@ -1944,15 +1836,16 @@ describe('table', () => {
         serializer.serializeItemForUpdate.returns({});
 
         serializer.deserializeItem.returns(item);
-        docClient.update.yields(null, {});
+        docClient.update.returns(promiser(null, {}));
 
-        table.after('update', () => done());
-
-        table.update(item, () => {});
-      });
+        return new Promise(resolve => {
+          table.after('update', () => resolve());
+          table.update(item);
+        })
+      }));
     });
 
-    it('#destroy should call after hook', done => {
+    it('#destroy should call after hook', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -1966,12 +1859,12 @@ describe('table', () => {
 
       table = new Table('accounts', s, serializer, docClient, logger);
 
-      docClient.delete.yields(null, {});
+      docClient.delete.returns(promiser(null, {}));
       serializer.buildKey.returns({});
-
-      table.after('destroy', () => done());
-
-      table.destroy('test@test.com', () => {});
-    });
+      return new Promise(resolve => {
+        table.after('destroy', () => resolve());
+        table.destroy('test@test.com');
+      })
+    }));
   });
 });

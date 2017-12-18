@@ -28,6 +28,7 @@
   "license": "MIT",
   "dependencies": {
     "async": "2.4.1",
+    "bluebird": "^3.5.1",
     "joi": "10.5.0",
     "lodash": "4.17.4",
     "uuid": "3.0.1"
@@ -41,7 +42,8 @@
     "istanbul": "^0.4.4",
     "jscoverage": "^0.6.0",
     "mocha": "^2.5.3",
-    "sinon": "^1.17.4"
+    "sinon": "^1.17.4",
+    "sinon-as-promised": "^4.0.3"
   },
   "peerDependencies": {
     "aws-sdk": "^2.58.0"

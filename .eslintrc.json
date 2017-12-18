@@ -4,19 +4,23 @@
     "node": true
   },
   "rules": {
-    "comma-dangle": [0],
-    "func-names": [0],
-    "strict": [0],
-    "vars-on-top": [0],
-    "max-len": [0],
-    "no-param-reassign": [0],
-    "no-shadow": [0],
-    "object-shorthand": [0],
-    "no-underscore-dangle": [0],
-    "newline-per-chained-call": [0],
-    "new-cap": [0],
-    "no-else-return": [0],
-    "consistent-return": [0],
-    "prefer-rest-params": [0]
+    "no-empty": "off",
+    "space-infix-ops": "off",
+    "semi": "off",
+    "padded-blocks": "off",
+    "comma-dangle": "off",
+    "func-names": "off",
+    "strict": "off",
+    "vars-on-top": "off",
+    "max-len": "off",
+    "no-param-reassign": "off",
+    "no-shadow": "off",
+    "object-shorthand": "off",
+    "no-underscore-dangle": "off",
+    "newline-per-chained-call": "off",
+    "new-cap": "off",
+    "no-else-return": "off",
+    "consistent-return": "off",
+    "prefer-rest-params": "off"
   }
 }

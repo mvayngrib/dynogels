@@ -5,6 +5,13 @@ const AWS = require('aws-sdk');
 const Table = require('../lib/table');
 const _ = require('lodash');
 
+exports.promiser = (err, result) => ({
+  promise: () => new Promise((resolve, reject) => {
+    if (err) return reject(err)
+    resolve(result)
+  })
+})
+
 exports.mockDynamoDB = () => {
   const opts = { endpoint: 'http://dynamodb-local:8000', apiVersion: '2012-08-10' };
   const db = new AWS.DynamoDB(opts);
@@ -26,7 +33,7 @@ exports.mockDynamoDB = () => {
 };
 
 exports.realDynamoDB = () => {
-  const opts = { endpoint: 'http://localhost:8000', apiVersion: '2012-08-10', region: 'eu-west-1' };
+  const opts = { endpoint: 'http://localhost:4569', apiVersion: '2012-08-10', region: 'eu-west-1' };
   return new AWS.DynamoDB(opts);
 };
 

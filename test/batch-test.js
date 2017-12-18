@@ -1,5 +1,6 @@
 'use strict';
 
+const co = require('co').wrap
 const helper = require('./test-helper');
 const chai = require('chai');
 const expect = chai.expect;
@@ -9,6 +10,9 @@ const batch = require('../lib/batch');
 const Serializer = require('../lib/serializer');
 const Joi = require('joi');
 const _ = require('lodash');
+
+chai.should()
+require('sinon-as-promised')
 
 describe('Batch', () => {
   let serializer;
@@ -35,7 +39,7 @@ describe('Batch', () => {
   });
 
   describe('#getItems', () => {
-    it('should get items by hash key', done => {
+    it('should get items by hash key', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -67,19 +71,16 @@ describe('Batch', () => {
       };
 
       const item1 = { email: 'test@test.com', name: 'Tim Tester' };
-      table.runBatchGetItems.withArgs(expectedRequest).yields(null, response);
+      table.runBatchGetItems.withArgs(expectedRequest).resolves(response);
 
       table.initItem.returns(new Item(item1));
 
-      batch(table, Serializer).getItems(['test@test.com', 'foo@example.com'], (err, items) => {
-        items.should.have.length(2);
-        items[0].get('email').should.equal('test@test.com');
+      const items = yield batch(table, Serializer).getItems(['test@test.com', 'foo@example.com'])
+      items.should.have.length(2);
+      items[0].get('email').should.equal('test@test.com');
+    }));
 
-        done();
-      });
-    });
-
-    it('should get items by hash and range key', done => {
+    it('should get items by hash and range key', co(function* () {
       const key1 = { email: 'test@test.com', name: 'Tim Tester' };
       const key2 = { email: 'foo@example.com', name: 'Foo Bar' };
 
@@ -104,19 +105,16 @@ describe('Batch', () => {
       };
 
       const item1 = { email: 'test@test.com', name: 'Tim Tester', age: 22 };
-      table.runBatchGetItems.withArgs(expectedRequest).yields(null, response);
+      table.runBatchGetItems.withArgs(expectedRequest).resolves(response);
 
       table.initItem.returns(new Item(item1));
 
-      batch(table, Serializer).getItems([key1, key2], (err, items) => {
-        items.should.have.length(2);
-        items[0].get('email').should.equal('test@test.com');
+      const items = yield batch(table, Serializer).getItems([key1, key2])
+      items.should.have.length(2);
+      items[0].get('email').should.equal('test@test.com');
+    }));
 
-        done();
-      });
-    });
-
-    it('should not modify passed in keys', done => {
+    it('should not modify passed in keys', co(function* () {
       const keys = _.map(_.range(300), num => {
         const key = { email: `test${num}@test.com`, name: `Test ${num}` };
         serializer.buildKey.withArgs(key).returns({ email: { S: key.email }, name: { S: key.name } });
@@ -125,22 +123,19 @@ describe('Batch', () => {
       });
 
       const item1 = { email: 'test@test.com', name: 'Tim Tester', age: 22 };
-      table.runBatchGetItems.yields(null, {});
+      table.runBatchGetItems.resolves({});
       serializer.deserializeItem.returns(item1);
 
       table.initItem.returns(new Item(item1));
 
-      batch(table, serializer).getItems(keys, () => {
-        _.each(_.range(300), num => {
-          const key = { email: `test${num}@test.com`, name: `Test ${num}` };
-          keys[num].should.eql(key);
-        });
-
-        done();
+      yield batch(table, serializer).getItems(keys)
+      _.each(_.range(300), num => {
+        const key = { email: `test${num}@test.com`, name: `Test ${num}` };
+        keys[num].should.eql(key);
       });
-    });
+    }));
 
-    it('should get items by hash key with consistent read', done => {
+    it('should get items by hash key with consistent read', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -173,19 +168,16 @@ describe('Batch', () => {
       };
 
       const item1 = { email: 'test@test.com', name: 'Tim Tester' };
-      table.runBatchGetItems.withArgs(expectedRequest).yields(null, response);
+      table.runBatchGetItems.withArgs(expectedRequest).resolves(response);
 
       table.initItem.returns(new Item(item1));
 
-      batch(table, Serializer).getItems(['test@test.com', 'foo@example.com'], { ConsistentRead: true }, (err, items) => {
-        items.should.have.length(2);
-        items[0].get('email').should.equal('test@test.com');
+      const items = yield batch(table, Serializer).getItems(['test@test.com', 'foo@example.com'], { ConsistentRead: true })
+      items.should.have.length(2);
+      items[0].get('email').should.equal('test@test.com');
+    }));
 
-        done();
-      });
-    });
-
-    it('should get items by hash key with projection expression', done => {
+    it('should get items by hash key with projection expression', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -219,7 +211,7 @@ describe('Batch', () => {
       };
 
       const item1 = { email: 'test@test.com', name: 'Tim Tester' };
-      table.runBatchGetItems.withArgs(expectedRequest).yields(null, response);
+      table.runBatchGetItems.withArgs(expectedRequest).resolves(response);
 
       table.initItem.returns(new Item(item1));
 
@@ -228,15 +220,12 @@ describe('Batch', () => {
         ExpressionAttributeNames: { '#name': 'name', '#email': 'email' }
       };
 
-      batch(table, Serializer).getItems(['test@test.com', 'foo@example.com'], opts, (err, items) => {
-        items.should.have.length(2);
-        items[0].get('email').should.equal('test@test.com');
+      const items = yield batch(table, Serializer).getItems(['test@test.com', 'foo@example.com'], opts)
+      items.should.have.length(2);
+      items[0].get('email').should.equal('test@test.com');
+    }));
 
-        done();
-      });
-    });
-
-    it('should get items when encounters retryable excpetion', done => {
+    it('should get items when encounters retryable exception', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -262,24 +251,19 @@ describe('Batch', () => {
       err.retryable = true;
 
       table.runBatchGetItems
-        .onCall(0).yields(err)
-        .onCall(1).yields(null, response);
+        .onCall(0).rejects(err)
+        .onCall(1).resolves(response);
 
       table.initItem.returns(new Item(item1));
 
-      batch(table, Serializer).getItems(['test@test.com', 'foo@example.com'], (err, items) => {
-        expect(err).to.not.exist;
-
-        expect(table.runBatchGetItems.calledTwice).to.be.true;
-        items.should.have.length(2);
-        items[0].get('email').should.equal('test@test.com');
-
-        done();
-      });
-    });
+      const items = yield batch(table, Serializer).getItems(['test@test.com', 'foo@example.com'])
+      expect(table.runBatchGetItems.calledTwice).to.be.true;
+      items.should.have.length(2);
+      items[0].get('email').should.equal('test@test.com');
+    }));
 
 
-    it('should get unprocessed keys', done => {
+    it('should get unprocessed keys', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -340,21 +324,17 @@ describe('Batch', () => {
       table.initItem.onCall(1).returns(new Item(item2));
 
       table.runBatchGetItems
-        .withArgs(expectedFirstRequest).yields(null, firstResponse)
-        .withArgs(expectedSecondRequest).yields(null, secondResponse);
+        .withArgs(expectedFirstRequest).resolves(firstResponse)
+        .withArgs(expectedSecondRequest).resolves(secondResponse);
 
-      batch(table, Serializer).getItems(['test@test.com', 'foo@example.com'], (err, items) => {
-        expect(err).to.not.exist;
+      const items = yield batch(table, Serializer).getItems(['test@test.com', 'foo@example.com'])
+      expect(table.runBatchGetItems.calledTwice).to.be.true;
+      items.should.have.length(2);
+      items[0].get('email').should.equal('test@test.com');
+      items[1].get('email').should.equal('foo@example.com');
+    }));
 
-        expect(table.runBatchGetItems.calledTwice).to.be.true;
-        items.should.have.length(2);
-        items[0].get('email').should.equal('test@test.com');
-        items[1].get('email').should.equal('foo@example.com');
-        done();
-      });
-    });
-
-    it('should return error', done => {
+    it('should return error', co(function* () {
       const config = {
         hashKey: 'email',
         schema: {
@@ -364,17 +344,20 @@ describe('Batch', () => {
       };
 
       table.schema = new Schema(config);
+      table.runBatchGetItems.onCall(0).rejects(new Error('Error'))
 
-      const err = new Error('Error');
-      table.runBatchGetItems.onCall(0).yields(err);
+      let items
+      let err
+      try {
+        yield batch(table, Serializer).getItems(['test@test.com', 'foo@example.com'])
+      } catch (e) {
+        err = e
+      }
 
-      batch(table, Serializer).getItems(['test@test.com', 'foo@example.com'], (err, items) => {
-        expect(err).to.exist;
-        expect(items).to.not.exist;
+      expect(err).to.exist;
+      expect(items).to.not.exist;
 
-        expect(table.runBatchGetItems.calledOnce).to.be.true;
-        done();
-      });
-    });
+      expect(table.runBatchGetItems.calledOnce).to.be.true;
+    }));
   });
 });

@@ -1,5 +1,6 @@
 'use strict';
 
+const co = require('co').wrap
 const dynogels = require('../index');
 const AWS = require('aws-sdk');
 const helper = require('./test-helper');
@@ -8,6 +9,7 @@ const chai = require('chai');
 const expect = chai.expect;
 const Joi = require('joi');
 const sinon = require('sinon');
+const { promiser } = helper
 
 chai.should();
 
@@ -148,7 +150,7 @@ describe('dynogels', () => {
       clock.restore();
     });
 
-    it('should create single definied model', function (done) {
+    it('should create single defined model', co(function* () {
       this.timeout(0);
 
       const Account = dynogels.define('Account', { hashKey: 'id' });
@@ -164,38 +166,40 @@ describe('dynogels', () => {
       const dynamodb = Account.docClient.service;
 
       dynamodb.describeTable
-        .onCall(0).yields(null, null)
-        .onCall(1).yields(null, second)
-        .onCall(2).yields(null, third);
+        .onCall(0).returns(promiser(null, null))
+        .onCall(1).returns(promiser(null, second))
+        .onCall(2).returns(promiser(null, third));
 
-      dynamodb.createTable.yields(null, null);
+      dynamodb.createTable.returns(promiser(null, null));
 
-      dynogels.createTables(err => {
-        expect(err).to.not.exist;
-        expect(dynamodb.describeTable.calledThrice).to.be.true;
-        return done();
-      });
+      const promise = dynogels.createTables()
 
       clock.tick(1200);
       clock.tick(1200);
-    });
 
-    it('should return error', done => {
+      yield promise
+      expect(dynamodb.describeTable.calledThrice).to.be.true;
+    }));
+
+    it('should return error', co(function* () {
       const Account = dynogels.define('Account', { hashKey: 'id' });
 
       const dynamodb = Account.docClient.service;
-      dynamodb.describeTable.onCall(0).yields(null, null);
+      dynamodb.describeTable.onCall(0).returns(promiser(null, null));
+      dynamodb.createTable.returns(promiser(new Error('Fail'), null));
 
-      dynamodb.createTable.yields(new Error('Fail'), null);
+      let err
+      try {
+        yield dynogels.createTables()
+      } catch (e) {
+        err = e
+      }
 
-      dynogels.createTables(err => {
-        expect(err).to.exist;
-        expect(dynamodb.describeTable.calledOnce).to.be.true;
-        return done();
-      });
-    });
+      expect(err).to.exist;
+      expect(dynamodb.describeTable.calledOnce).to.be.true;
+    }));
 
-    it('should create model without callback', done => {
+    it('should create model without callback', co(function* () {
       const Account = dynogels.define('Account', { hashKey: 'id' });
       const dynamodb = Account.docClient.service;
 
@@ -208,22 +212,22 @@ describe('dynogels', () => {
       };
 
       dynamodb.describeTable
-        .onCall(0).yields(null, null)
-        .onCall(1).yields(null, second)
-        .onCall(2).yields(null, third);
+        .onCall(0).returns(promiser(null, null))
+        .onCall(1).returns(promiser(null, second))
+        .onCall(2).returns(promiser(null, third));
 
-      dynamodb.createTable.yields(null, null);
+      dynamodb.createTable.returns(promiser(null, null));
 
-      dynogels.createTables();
+      const promise = dynogels.createTables();
 
       clock.tick(1200);
       clock.tick(1200);
 
+      yield promise
       expect(dynamodb.describeTable.calledThrice).to.be.true;
-      return done();
-    });
+    }));
 
-    it('should return error when waiting for table to become active', done => {
+    it('should return error when waiting for table to become active', co(function* () {
       const Account = dynogels.define('Account', { hashKey: 'id' });
       const dynamodb = Account.docClient.service;
 
@@ -232,20 +236,22 @@ describe('dynogels', () => {
       };
 
       dynamodb.describeTable
-        .onCall(0).yields(null, null)
-        .onCall(1).yields(null, second)
-        .onCall(2).yields(new Error('fail'));
+        .onCall(0).returns(promiser(null, null))
+        .onCall(1).returns(promiser(null, second))
+        .onCall(2).returns(promiser(new Error('fail')));
 
-      dynamodb.createTable.yields(null, null);
+      dynamodb.createTable.returns(promiser(null, null));
 
-      dynogels.createTables(err => {
-        expect(err).to.exist;
-        expect(dynamodb.describeTable.calledThrice).to.be.true;
-        return done();
+      let err
+      const promise = dynogels.createTables().catch(e => {
+        err = e
       });
 
       clock.tick(1200);
       clock.tick(1200);
-    });
+      yield promise
+      expect(err).to.exist;
+      expect(dynamodb.describeTable.calledThrice).to.be.true;
+    }));
   });
 });
